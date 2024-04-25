@@ -35,7 +35,7 @@ namespace DigitalTwinsCommandProject
 
                     // Send the message to IoT Hub
                     var serviceClient = ServiceClient.CreateFromConnectionString(IOT_HUB_CONNECTION_STRING);
-                    await serviceClient.SendAsync("your-device-id", message); // Replace "your-device-id" with the ID of your IoT device
+                    await serviceClient.SendAsync("iPhone", message); // Replace "your-device-id" with the ID of your IoT device
 
                     log.LogInformation($"Message sent to IoT Hub with isThresholdExceeded value: {isThresholdExceeded}");
                 }
