@@ -1,53 +1,56 @@
 ﻿using System;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
-using Azure.Identity;
-using Azure.DigitalTwins.Core;
-using Newtonsoft.Json;
 using Microsoft.Azure.Devices;
 using System.Text;
-using System.Threading.Tasks;
-using Azure.Messaging.EventGrid;
-using Microsoft.Azure.WebJobs.Extensions.EventGrid;
+using Newtonsoft.Json;
 
 namespace DigitalTwinsCommandProject
 {
-    public static class DigitalTwinsCommandProject
+    public static class DigitalTwinToIoTHubFunction
     {
-        private static readonly string ADT_SERVICE_URL = Environment.GetEnvironmentVariable("ADT_SERVICE_URL");
         private static readonly string IOT_HUB_CONNECTION_STRING = Environment.GetEnvironmentVariable("IOT_HUB_CONNECTION_STRING");
+        private static readonly string APP_SERVICE_ENDPOINT = Environment.GetEnvironmentVariable("APP_SERVICE_ENDPOINT");
 
         [FunctionName("DigitalTwinToIoTHubFunction")]
-        public static async Task Run([EventGridTrigger] EventGridEvent eventGridEvent, ILogger log)
+        public static async Task Run([TimerTrigger("*/5 * * * * *")] TimerInfo myTimer, ILogger log)
         {
-            if (ADT_SERVICE_URL == null || IOT_HUB_CONNECTION_STRING == null)
+            if (IOT_HUB_CONNECTION_STRING == null || APP_SERVICE_ENDPOINT == null)
             {
-                log.LogError("Application settings 'ADT_SERVICE_URL' or 'IOT_HUB_CONNECTION_STRING' not set");
+                log.LogError("Application settings 'IOT_HUB_CONNECTION_STRING' or 'APP_SERVICE_ENDPOINT' not set");
                 return;
             }
 
             try
             {
-                DefaultAzureCredential defaultAzureCredential = new DefaultAzureCredential();
-                DigitalTwinsClient digitalTwinsClient = new DigitalTwinsClient(new Uri(ADT_SERVICE_URL), defaultAzureCredential);
-                log.LogInformation($"ADT service client connection created.");
-
-                // Query your digital twin instance to get the value of 'isThresholdExceeded' property
-                string digitalTwinId = "iPhone509"; // Replace with the ID of your digital twin
-                var isThresholdExceeded = (bool)(await digitalTwinsClient.GetDigitalTwinAsync<bool>(digitalTwinId));
+                // Fetch isThresholdExceeded value from the App Service
+                bool isThresholdExceeded = await FetchThresholdValueFromAppService();
 
                 // Create a message for IoT Hub
                 var message = new Message(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new { isThresholdExceeded })));
 
                 // Send the message to IoT Hub
                 var serviceClient = ServiceClient.CreateFromConnectionString(IOT_HUB_CONNECTION_STRING);
-                await serviceClient.SendAsync("iPhone", message); // Replace "your-device-id" with the ID of your IoT device
+                await serviceClient.SendAsync("your-device-id", message); // Replace "your-device-id" with the ID of your IoT device
 
                 log.LogInformation($"Message sent to IoT Hub with isThresholdExceeded value: {isThresholdExceeded}");
             }
             catch (Exception ex)
             {
                 log.LogError($"Error in DigitalTwinToIoTHubFunction: {ex.Message}");
+            }
+        }
+
+        private static async Task<bool> FetchThresholdValueFromAppService()
+        {
+            using (var httpClient = new HttpClient())
+            {
+                var response = await httpClient.GetAsync(APP_SERVICE_ENDPOINT);
+                response.EnsureSuccessStatusCode();
+                var content = await response.Content.ReadAsStringAsync();
+                return bool.Parse(content); // Assuming the endpoint returns a boolean value
             }
         }
     }
