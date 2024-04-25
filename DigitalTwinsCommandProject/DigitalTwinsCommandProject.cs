@@ -7,12 +7,14 @@ using Microsoft.Azure.Devices;
 using Azure.Messaging.EventGrid;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using System.Text;
+using Newtonsoft.Json;
 
 namespace DigitalTwinsCommandProject
 {
     public static class DigitalTwinToIoTHubFunction
     {
         private static readonly string IOT_HUB_CONNECTION_STRING = Environment.GetEnvironmentVariable("IOT_HUB_CONNECTION_STRING");
+        private static readonly string ADT_SERVICE_URL = Environment.GetEnvironmentVariable("ADT_SERVICE_URL");
         private static readonly HttpClient httpClient = new HttpClient();
 
         [FunctionName("DigitalTwinToIoTHubFunction")]
@@ -21,14 +23,22 @@ namespace DigitalTwinsCommandProject
             try
             {
                 // Make an HTTP request to your App Service endpoint
-                string appServiceUrl = "YOUR_APP_SERVICE_ENDPOINT";
-                HttpResponseMessage response = await httpClient.GetAsync(appServiceUrl);
+                HttpResponseMessage response = await httpClient.GetAsync(ADT_SERVICE_URL);
 
                 // Check if the request was successful
                 if (response.IsSuccessStatusCode)
                 {
-                    // Read the boolean variable from the response
-                    bool isThresholdExceeded = await response.Content.ReadAsAsync<bool>();
+                    // Read the response content
+                    string responseBody = await response.Content.ReadAsStringAsync();
+
+                    // Parse the JSON response
+                    dynamic accelerometerData = JsonConvert.DeserializeObject(responseBody);
+
+                    // Check if x, y, or z value is above 2
+                    bool isThresholdExceeded =
+                        Math.Abs(accelerometerData.x) > 2 ||
+                        Math.Abs(accelerometerData.y) > 2 ||
+                        Math.Abs(accelerometerData.z) > 2;
 
                     // Create a message for IoT Hub
                     var message = new Message(Encoding.UTF8.GetBytes($"{{ \"isThresholdExceeded\": {isThresholdExceeded.ToString().ToLower()} }}"));
