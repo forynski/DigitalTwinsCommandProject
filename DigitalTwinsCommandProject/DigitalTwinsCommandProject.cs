@@ -55,9 +55,8 @@ namespace DigitalTwinsCommandProject
                 dynamic accelerometerData = JsonConvert.DeserializeObject(content);
 
                 // Check if x, y, or z value is above 2
-                return Math.Abs(accelerometerData.x) > 2 ||
-                       Math.Abs(accelerometerData.y) > 2 ||
-                       Math.Abs(accelerometerData.z) > 2;
+                bool isThresholdExceeded = accelerometerData.x > 2 || accelerometerData.y > 2 || accelerometerData.z > 2;
+                return isThresholdExceeded;
             }
         }
     }
